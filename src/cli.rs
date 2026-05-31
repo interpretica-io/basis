@@ -67,4 +67,21 @@ pub enum VersionCommand {
         #[arg(long)]
         to: Option<String>,
     },
+    /// Bump one component's version and update repos that depend on it.
+    Bump {
+        /// Repository (component) to bump.
+        repo: String,
+        /// Increment the major version (X.0.0).
+        #[arg(long, group = "how")]
+        major: bool,
+        /// Increment the minor version (x.Y.0).
+        #[arg(long, group = "how")]
+        minor: bool,
+        /// Increment the patch version (x.y.Z). This is the default.
+        #[arg(long, group = "how")]
+        patch: bool,
+        /// Set an explicit target version instead of incrementing.
+        #[arg(long, group = "how")]
+        to: Option<String>,
+    },
 }
