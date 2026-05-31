@@ -7,6 +7,14 @@ use semver::Version;
 
 use crate::config::{Config, Lang, Repo};
 
+/// How to compute a component's new version in `bump`.
+pub enum Bump {
+    Major,
+    Minor,
+    Patch,
+    To(String),
+}
+
 /// A repository's resolved version, plus where it came from.
 pub struct VersionInfo {
     pub name: String,
@@ -156,6 +164,107 @@ fn apply(cfg: &Config, version: &str) -> Result<()> {
             from.dimmed(),
             version
         );
+    }
+    Ok(())
+}
+
+/// The package name a repo exposes to dependents: explicit `provides`, else the
+/// Rust crate name, else the repo name.
+fn provided_name(cfg: &Config, repo: &Repo) -> String {
+    if let Some(p) = &repo.provides {
+        return p.clone();
+    }
+    if repo.lang == Lang::Rust {
+        if let Ok(Some(name)) = rust::read_package_name(&cfg.repo_dir(repo)) {
+            return name;
+        }
+    }
+    repo.name.clone()
+}
+
+/// Apply a `Bump` to a semver string.
+fn apply_bump(current: &str, how: &Bump) -> Result<String> {
+    if let Bump::To(v) = how {
+        validate_semver(v)?;
+        return Ok(v.clone());
+    }
+    let mut v = Version::parse(current).map_err(|_| {
+        anyhow::anyhow!("current version '{current}' is not valid semver; use --to")
+    })?;
+    match how {
+        Bump::Major => {
+            v.major += 1;
+            v.minor = 0;
+            v.patch = 0;
+        }
+        Bump::Minor => {
+            v.minor += 1;
+            v.patch = 0;
+        }
+        Bump::Patch => v.patch += 1,
+        Bump::To(_) => unreachable!(),
+    }
+    v.pre = semver::Prerelease::EMPTY;
+    v.build = semver::BuildMetadata::EMPTY;
+    Ok(v.to_string())
+}
+
+/// Bump one component's version, then update every repo that depends on it.
+pub fn bump(cfg: &Config, repo_name: &str, how: Bump) -> Result<()> {
+    let target = cfg
+        .manifest
+        .repos
+        .iter()
+        .find(|r| r.name == repo_name)
+        .ok_or_else(|| anyhow::anyhow!("unknown repository '{repo_name}'"))?;
+
+    let current = read_repo(cfg, target)?
+        .ok_or_else(|| anyhow::anyhow!("'{repo_name}' has no readable version"))?;
+    let new_version = apply_bump(&current, &how)?;
+
+    let dep_name = provided_name(cfg, target);
+
+    println!(
+        "{} {} {} -> {} {}",
+        "bumping".bold(),
+        repo_name.cyan(),
+        current.dimmed(),
+        new_version.green(),
+        format!("(provides '{dep_name}')").dimmed()
+    );
+
+    if new_version == current {
+        println!("  {} already at {new_version}", "·".dimmed());
+    } else {
+        write_repo(cfg, target, &new_version)?;
+        println!("  {} {} version set to {}", "✓".green(), repo_name, new_version);
+    }
+
+    // Propagate the new version into every other repo that depends on it.
+    let mut touched = 0;
+    for dependent in &cfg.manifest.repos {
+        if dependent.name == repo_name {
+            continue;
+        }
+        let dir = cfg.repo_dir(dependent);
+        let changed = match dependent.lang {
+            Lang::Rust => rust::update_dependency(&dir, &dep_name, &new_version)?,
+            Lang::Cpp => cpp::update_dependency(&dir, dependent, &dep_name, &new_version)?,
+        };
+        if changed > 0 {
+            touched += 1;
+            println!(
+                "  {} {} now requires {} {}",
+                "↳".blue(),
+                dependent.name,
+                dep_name,
+                new_version
+            );
+        }
+    }
+
+    if touched == 0 {
+        println!("  {} no dependents referenced '{dep_name}'", "·".dimmed());
     }
     Ok(())
 }
