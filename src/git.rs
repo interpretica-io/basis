@@ -30,6 +30,45 @@ pub fn config(dir: &Path, key: &str) -> Option<String> {
     git(dir, &["config", "--get", key]).filter(|s| !s.is_empty())
 }
 
+/// URL of a named remote (e.g. "origin"), or `None` if it has none.
+pub fn remote_url(dir: &Path, remote: &str) -> Option<String> {
+    git(dir, &["remote", "get-url", remote]).filter(|s| !s.is_empty())
+}
+
+/// Normalize a git URL so equivalent spellings compare equal, e.g.
+/// `git@github.com:org/repo.git` and `https://github.com/org/repo` both
+/// become `github.com/org/repo`.
+pub fn normalize_url(url: &str) -> String {
+    let mut s = url.trim().to_string();
+
+    // Drop the scheme (https://, ssh://, git://, ...).
+    if let Some(idx) = s.find("://") {
+        s = s[idx + 3..].to_string();
+    }
+
+    // Drop userinfo (git@host) in the authority section.
+    let authority_end = s.find('/').unwrap_or(s.len());
+    if let Some(at) = s[..authority_end].find('@') {
+        s = s[at + 1..].to_string();
+    }
+
+    // scp-like `host:path` -> `host/path` (turn the authority ':' into '/').
+    let authority_end = s.find('/').unwrap_or(s.len());
+    if let Some(colon) = s[..authority_end].find(':') {
+        s.replace_range(colon..colon + 1, "/");
+    }
+
+    // Drop trailing `.git` and slashes.
+    let trimmed = s.trim_end_matches('/');
+    let trimmed = trimmed.strip_suffix(".git").unwrap_or(trimmed);
+    trimmed.trim_end_matches('/').to_lowercase()
+}
+
+/// Whether two git URLs refer to the same repository.
+pub fn same_remote(a: &str, b: &str) -> bool {
+    normalize_url(a) == normalize_url(b)
+}
+
 /// Collect git status for `dir`. Never fails: non-repos return `is_repo: false`.
 pub fn status(dir: &Path) -> GitStatus {
     let mut st = GitStatus::default();
