@@ -6,6 +6,7 @@ repos:
   - name: core
     path: core
     lang: rust
+    url: https://github.com/example/core
     actions:
       build: [cargo build --release]
       clean: [cargo clean]
@@ -13,6 +14,7 @@ repos:
   - name: engine
     path: engine
     lang: cpp
+    url: git@github.com:example/engine.git
     version_file: .version
     cmake_file: CMakeLists.txt
     actions:
