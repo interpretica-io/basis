@@ -31,6 +31,24 @@ fn run() -> Result<()> {
             VersionCommand::Show => version::show(&cfg),
             VersionCommand::Set { version } => version::set_all(&cfg, &version),
             VersionCommand::Sync { to } => version::sync(&cfg, to.as_deref()),
+            VersionCommand::Bump {
+                repo,
+                major,
+                minor,
+                patch: _,
+                to,
+            } => {
+                let how = if let Some(v) = to {
+                    version::Bump::To(v)
+                } else if major {
+                    version::Bump::Major
+                } else if minor {
+                    version::Bump::Minor
+                } else {
+                    version::Bump::Patch
+                };
+                version::bump(&cfg, &repo, how)
+            }
         },
     }
 }
