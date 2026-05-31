@@ -36,6 +36,7 @@ repos:
   - name: core           # unique name, used with --repo
     path: core           # path relative to the manifest
     lang: rust           # rust | cpp
+    url: https://github.com/acme/core   # optional canonical git URL
     actions:
       build: [cargo build --release]
       clean: [cargo clean]
@@ -43,6 +44,7 @@ repos:
   - name: engine
     path: engine
     lang: cpp
+    url: git@github.com:acme/engine.git
     provides: core               # optional package name exposed to dependents
     version_file: .version       # optional, default: .version
     cmake_file: CMakeLists.txt   # optional, default: CMakeLists.txt
@@ -147,12 +149,27 @@ the enforcing gate (e.g. in CI or a pre-push hook).
 
 ```sh
 $ basis status
-  core    rust  1.0.0       id ✓  main clean
-  app     rust  1.0.0       id ✗  main dirty
+  core    rust  1.0.0       id ✓  main clean origin✓
+  app     rust  1.0.0       id ✗  main dirty origin✗
 
 versions: all versions at 1.0.0
 identity: 1 repo(s) fail (run `basis verify` for details)
 ```
+
+## Canonical repository URLs
+
+Each repo may declare a canonical git `url:`. `basis status` compares it against
+the local `origin` remote and reports one of:
+
+* `origin✓` — `origin` matches the canonical URL,
+* `origin✗` — `origin` points somewhere else (the expected/actual pair is
+  listed below the table),
+* `no-origin` — the repo has no `origin` remote,
+* `missing` — the repo directory has not been cloned yet.
+
+URLs are compared after normalisation, so `git@github.com:acme/core.git` and
+`https://github.com/acme/core` are treated as the same repository (scheme,
+`git@` userinfo, and a trailing `.git` are ignored).
 
 ## Example
 
