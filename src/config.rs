@@ -27,6 +27,10 @@ pub struct Repo {
     pub name: String,
     /// Path to the repository, relative to the manifest.
     pub path: PathBuf,
+    /// Canonical git URL the repository should originate from. Compared (after
+    /// normalisation) against the local `origin` remote in `basis status`.
+    #[serde(default)]
+    pub url: Option<String>,
     /// Language, determines versioning strategy.
     pub lang: Lang,
     /// Package name this repo exposes to dependents (default: Rust crate name,
