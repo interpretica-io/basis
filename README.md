@@ -10,7 +10,9 @@ group of related repositories that are built, cleaned and versioned together.
 2. **Track versions** per repository — Rust via `Cargo.toml`, C++ via a
    `.version` file (and/or `CMakeLists.txt`).
 3. **Synchronise versions** across every repository to one common value.
-4. **Report status** — git state plus version-sync state of the whole
+4. **Bump one component** and propagate the new version into every repository
+   that depends on it.
+5. **Report status** — git state plus version-sync state of the whole
    constellation via `basis status`.
 
 ## Install
@@ -38,6 +40,7 @@ repos:
   - name: engine
     path: engine
     lang: cpp
+    provides: core               # optional package name exposed to dependents
     version_file: .version       # optional, default: .version
     cmake_file: CMakeLists.txt   # optional, default: CMakeLists.txt
     actions:
@@ -65,6 +68,7 @@ basis version                            # alias of `version show`
 basis version show                       # list every repo's version
 basis version set <X.Y.Z>                # set an explicit version everywhere
 basis version sync [--to <X.Y.Z>]        # converge all repos onto one version
+basis version bump <repo> [--major|--minor|--patch|--to X.Y.Z]
 ```
 
 Common flags:
@@ -85,6 +89,29 @@ Common flags:
 For Rust repos it rewrites `[package].version` in `Cargo.toml` (preserving
 formatting). For C++ repos it writes the `.version` file and patches the
 `project(... VERSION x.y.z ...)` call in the CMake file when present.
+
+### Bumping a component and its dependents
+
+`basis version bump <repo>` raises one component's version (default `--patch`,
+or `--major` / `--minor` / `--to X.Y.Z`) and then rewrites every repository that
+depends on it:
+
+* **Rust dependents** — the matching entry in `[dependencies]`,
+  `[dev-dependencies]` or `[build-dependencies]` gets its `version` updated,
+  keeping `path`, features and `package =` renames intact.
+* **C++ dependents** — `find_package(<name> <ver> ...)` in the CMake file is
+  re-pinned.
+
+Matching is by the bumped repo's **provided name**: its `provides:` field if
+set, otherwise the Rust crate name (`[package].name`), otherwise the repo name.
+
+```sh
+$ basis version bump core --minor
+bumping core 1.0.0 -> 1.1.0 (provides 'core')
+  ✓ core version set to 1.1.0
+  ↳ app now requires core 1.1.0
+  ↳ engine now requires core 1.1.0
+```
 
 ## Example
 
