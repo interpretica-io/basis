@@ -15,7 +15,7 @@ pub fn version_file(repo_dir: &Path, repo: &Repo) -> PathBuf {
 }
 
 /// Path to the CMake file to patch (default `CMakeLists.txt`).
-fn cmake_file(repo_dir: &Path, repo: &Repo) -> PathBuf {
+pub fn cmake_file(repo_dir: &Path, repo: &Repo) -> PathBuf {
     let rel = repo
         .cmake_file
         .clone()
@@ -74,4 +74,46 @@ pub fn write_version(repo_dir: &Path, repo: &Repo, version: &str) -> Result<()> 
     }
 
     Ok(())
+}
+
+/// Matches `find_package(<dep> <version> ...)` for a specific dependency.
+/// Group 1 is up to and including the dependency name + spaces, group 2 the
+/// version number.
+fn find_package_re(dep_name: &str) -> Regex {
+    let escaped = regex::escape(dep_name);
+    Regex::new(&format!(
+        r"(?im)(find_package\s*\(\s*{escaped}\s+)(\d+(?:\.\d+){{0,3}})"
+    ))
+    .unwrap()
+}
+
+/// Update a `find_package(<dep_name> <ver> ...)` pin in this repo's CMake file
+/// to `new_version`. Returns the number of occurrences changed.
+pub fn update_dependency(
+    repo_dir: &Path,
+    repo: &Repo,
+    dep_name: &str,
+    new_version: &str,
+) -> Result<usize> {
+    let cf = cmake_file(repo_dir, repo);
+    if !cf.exists() {
+        return Ok(0);
+    }
+    let text = std::fs::read_to_string(&cf)
+        .with_context(|| format!("reading {}", cf.display()))?;
+
+    let re = find_package_re(dep_name);
+    let mut changed = 0;
+    let patched = re.replace_all(&text, |caps: &regex::Captures| {
+        if &caps[2] != new_version {
+            changed += 1;
+        }
+        format!("{}{}", &caps[1], new_version)
+    });
+
+    if changed > 0 {
+        std::fs::write(&cf, patched.as_ref())
+            .with_context(|| format!("writing {}", cf.display()))?;
+    }
+    Ok(changed)
 }
