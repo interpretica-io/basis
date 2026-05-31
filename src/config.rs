@@ -29,6 +29,10 @@ pub struct Repo {
     pub path: PathBuf,
     /// Language, determines versioning strategy.
     pub lang: Lang,
+    /// Package name this repo exposes to dependents (default: Rust crate name,
+    /// otherwise the repo name). Used to find/patch cross-repo dependencies.
+    #[serde(default)]
+    pub provides: Option<String>,
     /// C++ only: file holding the plain version string (default `.version`).
     #[serde(default)]
     pub version_file: Option<PathBuf>,
