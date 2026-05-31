@@ -1,0 +1,21 @@
+constellation: example
+version: 1.0.0
+
+repos:
+  - name: core
+    path: core
+    lang: rust
+    actions:
+      build: [cargo build --release]
+      clean: [cargo clean]
+
+  - name: engine
+    path: engine
+    lang: cpp
+    version_file: .version
+    cmake_file: CMakeLists.txt
+    actions:
+      build:
+        - cmake -B build -S .
+        - cmake --build build
+      clean: [rm -rf build]

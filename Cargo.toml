@@ -1,0 +1,20 @@
+[package]
+name = "basis"
+version = "0.1.0"
+edition = "2021"
+description = "Constellation build system: build, version and sync groups of repositories"
+license = "MIT"
+
+[[bin]]
+name = "basis"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+toml_edit = "0.22"
+regex = "1"
+anyhow = "1"
+colored = "2"
+semver = "1"
