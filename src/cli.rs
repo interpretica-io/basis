@@ -29,6 +29,8 @@ pub enum Command {
     },
     /// Show git and version status of every repository.
     Status,
+    /// Verify git/GPG identity e-mail domains against the manifest policy.
+    Verify,
     /// Inspect or change versions across the constellation.
     Version {
         #[command(subcommand)]

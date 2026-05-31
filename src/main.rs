@@ -1,8 +1,10 @@
 mod cli;
 mod config;
 mod git;
+mod gpg;
 mod runner;
 mod status;
+mod verify;
 mod version;
 
 use anyhow::Result;
@@ -27,6 +29,7 @@ fn run() -> Result<()> {
         Command::Clean(args) => runner::run_action(&cfg, "clean", &args),
         Command::Run { action, args } => runner::run_action(&cfg, &action, &args),
         Command::Status => status::show(&cfg),
+        Command::Verify => verify::run(&cfg),
         Command::Version { cmd } => match cmd.unwrap_or(VersionCommand::Show) {
             VersionCommand::Show => version::show(&cfg),
             VersionCommand::Set { version } => version::set_all(&cfg, &version),

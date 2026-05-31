@@ -39,6 +39,13 @@ pub struct Repo {
     /// C++ only: CMake file whose `project(... VERSION ...)` is patched.
     #[serde(default)]
     pub cmake_file: Option<PathBuf>,
+    /// Allowed e-mail domain(s) for this repo's git/GPG identity. Overrides the
+    /// manifest-level policy when set. Single-value convenience field.
+    #[serde(default)]
+    pub email_domain: Option<String>,
+    /// Allowed e-mail domains (list form). Merged with `email_domain`.
+    #[serde(default)]
+    pub email_domains: Vec<String>,
     /// Map of action name -> ordered list of shell commands.
     #[serde(default)]
     pub actions: BTreeMap<String, Vec<String>>,
@@ -50,6 +57,12 @@ pub struct Manifest {
     /// Optional canonical version of the whole constellation.
     #[serde(default)]
     pub version: Option<String>,
+    /// Default allowed e-mail domain for git/GPG identity (single-value form).
+    #[serde(default)]
+    pub email_domain: Option<String>,
+    /// Default allowed e-mail domains (list form). Merged with `email_domain`.
+    #[serde(default)]
+    pub email_domains: Vec<String>,
     pub repos: Vec<Repo>,
 }
 
@@ -88,6 +101,32 @@ impl Config {
     /// Absolute (or manifest-relative) directory of a repository.
     pub fn repo_dir(&self, repo: &Repo) -> PathBuf {
         self.base_dir.join(&repo.path)
+    }
+
+    /// Allowed e-mail domains for a repo's identity: the repo-level policy if
+    /// any, otherwise the manifest-level one. Lower-cased, deduplicated.
+    pub fn allowed_domains(&self, repo: &Repo) -> Vec<String> {
+        fn merge(single: &Option<String>, list: &[String]) -> Vec<String> {
+            let mut v: Vec<String> = list.to_vec();
+            if let Some(s) = single {
+                v.push(s.clone());
+            }
+            v
+        }
+
+        let mut v = merge(&repo.email_domain, &repo.email_domains);
+        if v.is_empty() {
+            v = merge(&self.manifest.email_domain, &self.manifest.email_domains);
+        }
+
+        let mut out: Vec<String> = v
+            .iter()
+            .map(|d| d.trim().trim_start_matches('@').to_lowercase())
+            .filter(|d| !d.is_empty())
+            .collect();
+        out.sort();
+        out.dedup();
+        out
     }
 
     /// Select repositories by name, preserving manifest order. An empty filter

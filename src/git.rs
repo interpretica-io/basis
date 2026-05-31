@@ -24,6 +24,12 @@ fn git(dir: &Path, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
 }
 
+/// Read an effective git config value for `dir` (local, then global, etc.).
+/// Returns `None` if unset or empty.
+pub fn config(dir: &Path, key: &str) -> Option<String> {
+    git(dir, &["config", "--get", key]).filter(|s| !s.is_empty())
+}
+
 /// Collect git status for `dir`. Never fails: non-repos return `is_repo: false`.
 pub fn status(dir: &Path) -> GitStatus {
     let mut st = GitStatus::default();

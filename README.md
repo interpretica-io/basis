@@ -12,7 +12,9 @@ group of related repositories that are built, cleaned and versioned together.
 3. **Synchronise versions** across every repository to one common value.
 4. **Bump one component** and propagate the new version into every repository
    that depends on it.
-5. **Report status** — git state plus version-sync state of the whole
+5. **Verify identity** — check that each repo's `git config user.email` and the
+   e-mail on its GPG signing key are on an allowed domain.
+6. **Report status** — git state plus version-sync state of the whole
    constellation via `basis status`.
 
 ## Install
@@ -28,6 +30,7 @@ cargo run -- <args>
 ```yaml
 constellation: my-product
 version: 1.2.0            # optional canonical version of the constellation
+email_domain: corp.com   # optional identity policy (see `basis verify`)
 
 repos:
   - name: core           # unique name, used with --repo
@@ -63,6 +66,7 @@ basis clean [--repo NAME]... [-k] [-n]   # run the `clean` action
 basis run <action> [--repo NAME]...      # run any named action
 
 basis status                             # git + version status of all repos
+basis verify                             # check git/GPG e-mail domains
 
 basis version                            # alias of `version show`
 basis version show                       # list every repo's version
@@ -111,6 +115,43 @@ bumping core 1.0.0 -> 1.1.0 (provides 'core')
   ✓ core version set to 1.1.0
   ↳ app now requires core 1.1.0
   ↳ engine now requires core 1.1.0
+```
+
+## Identity verification
+
+`basis verify` enforces that contributors use a company identity. For every repo
+that has an e-mail-domain policy it checks:
+
+* `git config user.email` resolves to an allowed domain, and
+* the OpenPGP **signing key** (`user.signingkey`, or the key matching the git
+  e-mail) has a user ID whose e-mail is on an allowed domain.
+
+Domains come from `email_domain` (single) and/or `email_domains` (list). A repo
+may override the constellation-wide policy with its own field. SSH-format signing
+(`gpg.format=ssh`) carries no e-mail and is reported as unverifiable (not a
+failure). The command exits non-zero if any checked repo fails.
+
+```sh
+$ basis verify
+==> core
+  allowed domains: corp.com
+  ✓ git email: dev@corp.com
+  ✓ gpg key: ABCD1234 [dev@corp.com]
+  ✓ ok
+```
+
+`basis status` runs the same checks and shows a compact `id ✓ / id ✗ / id !`
+column per repo (`—` when no policy applies), plus a summary line. Unlike
+`basis verify`, `status` is informational and always exits 0; use `verify` as
+the enforcing gate (e.g. in CI or a pre-push hook).
+
+```sh
+$ basis status
+  core    rust  1.0.0       id ✓  main clean
+  app     rust  1.0.0       id ✗  main dirty
+
+versions: all versions at 1.0.0
+identity: 1 repo(s) fail (run `basis verify` for details)
 ```
 
 ## Example
