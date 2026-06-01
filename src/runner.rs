@@ -8,7 +8,20 @@ use crate::config::Config;
 
 /// Run a named action (e.g. "build" or "clean") across the selected repos.
 pub fn run_action(cfg: &Config, action: &str, args: &RunArgs) -> Result<()> {
+    // A per-task tmux display runs the action in parallel, one pane per repo.
+    // Enabled by the task's `display:` name (or forced with --tmux / --no-tmux).
+    // The session is created lazily, only on execution.
+    if let Some(session) = crate::display::resolve_session(cfg, action, args) {
+        return crate::display::launch_task(cfg, action, args, &session);
+    }
+
     let repos = cfg.select(&args.repos)?;
+
+    // Catch typos / unknown actions: error if no selected repo defines it.
+    if !repos.iter().any(|r| r.actions.contains_key(action)) {
+        bail!("no selected repository defines a '{action}' action");
+    }
+
     let mut failures: Vec<String> = Vec::new();
 
     for repo in repos {

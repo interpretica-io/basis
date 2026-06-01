@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod display;
 mod git;
 mod gpg;
 mod install;
@@ -8,11 +9,13 @@ mod status;
 mod verify;
 mod version;
 
+use std::ffi::OsString;
+
 use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
 
-use cli::{Cli, Command, VersionCommand};
+use cli::{ActionArgs, Cli, Command, VersionCommand};
 
 fn main() {
     if let Err(e) = run() {
@@ -29,9 +32,18 @@ fn run() -> Result<()> {
 
     match cli.command {
         Command::Install { spec, into, branch } => install::run(&spec, into, branch, &file),
-        Command::Build(args) => runner::run_action(&load()?, "build", &args),
-        Command::Clean(args) => runner::run_action(&load()?, "clean", &args),
-        Command::Run { action, args } => runner::run_action(&load()?, &action, &args),
+        Command::Action(tokens) => {
+            // tokens[0] is the action name; the rest are its flags.
+            let argv = std::iter::once(OsString::from("basis"))
+                .chain(tokens.into_iter().map(OsString::from));
+            let inv = ActionArgs::try_parse_from(argv)?;
+            runner::run_action(&load()?, &inv.action, &inv.args)
+        }
+        Command::Display {
+            name,
+            kill,
+            detached,
+        } => display::run(&load()?, name, kill, detached),
         Command::Status => status::show(&load()?),
         Command::Verify => verify::run(&load()?),
         Command::Version { cmd } => {

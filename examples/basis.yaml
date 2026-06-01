@@ -2,6 +2,12 @@ constellation: example
 version: 1.0.0
 email_domain: example.com
 
+tasks:
+  # build is one-shot: run it inline, no display.
+  run:
+    display: services     # long-running: open the "services" display, one pane per repo
+    layout: even-vertical
+
 repos:
   - name: core
     path: core
@@ -9,6 +15,7 @@ repos:
     url: https://github.com/example/core
     actions:
       build: [cargo build --release]
+      run: [cargo run --release]
       clean: [cargo clean]
 
   - name: engine
@@ -21,4 +28,13 @@ repos:
       build:
         - cmake -B build -S .
         - cmake --build build
+      run: ["./build/engine"]
       clean: [rm -rf build]
+
+displays:
+  dev:
+    layout: main-vertical
+    panes:
+      - { repo: core,   command: "cargo watch -x run" }
+      - { repo: engine, action: build }
+      - { name: shell }

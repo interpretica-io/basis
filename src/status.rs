@@ -2,6 +2,7 @@ use anyhow::Result;
 use colored::Colorize;
 
 use crate::config::Config;
+use crate::display;
 use crate::git;
 use crate::verify::{self, State};
 use crate::version;
@@ -174,6 +175,34 @@ pub fn show(cfg: &Config) -> Result<()> {
             for note in &remote_notes {
                 println!("{note}");
             }
+        }
+    }
+
+    let displays = display::statuses(cfg);
+    if !displays.is_empty() {
+        println!();
+        let dname_w = displays
+            .iter()
+            .map(|d| d.name.len())
+            .max()
+            .unwrap_or(7)
+            .max(7);
+        println!("{}", "displays:".bold());
+        for d in &displays {
+            let state = if d.running {
+                "● running".green().to_string()
+            } else {
+                "○ stopped".dimmed().to_string()
+            };
+            println!(
+                "  {:<dname_w$}  {}  {} pane(s), {}  {}",
+                d.name.bold(),
+                state,
+                d.panes,
+                d.layout,
+                format!("[{}]", d.session).dimmed(),
+                dname_w = dname_w
+            );
         }
     }
 

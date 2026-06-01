@@ -87,14 +87,17 @@ repos:
 
 ## Commands
 
-```sh
-basis install <org/repo> [--into DIR] [--branch B]   # clone a constellation
-basis build [--repo NAME]... [-k] [-n]   # run the `build` action
-basis clean [--repo NAME]... [-k] [-n]   # run the `clean` action
-basis run <action> [--repo NAME]...      # run any named action
+# Any non-reserved name runs the matching `action` across the constellation:
+basis <action> [--repo NAME]... [-k] [-n] [--tmux|--no-tmux]
+basis build                              # run the `build` action everywhere
+basis run                                # run the `run` action (e.g. services)
+basis test --repo core --tmux            # run `test`, forced into a tmux display
 
+# Reserved subcommands (cannot be used as action names):
+basis install <org/repo> [--into DIR] [--branch B]   # clone a constellation
 basis status                             # git + version status of all repos
 basis verify                             # check git/GPG e-mail domains
+basis display [NAME] [--detached|--kill] # launch a tmux dev dashboard
 
 basis version                            # alias of `version show`
 basis version show                       # list every repo's version
@@ -103,12 +106,18 @@ basis version sync [--to <X.Y.Z>]        # converge all repos onto one version
 basis version bump <repo> [--major|--minor|--patch|--to X.Y.Z]
 ```
 
+`build`, `clean`, `run`, `test`, … are not special — they are just action names
+looked up in the manifest. The reserved names `install`, `status`, `verify`,
+`display`, `version` are the only ones that cannot double as actions.
+
 Common flags:
 
 * `-f, --file <PATH>` — manifest path (default `basis.yaml`).
 * `-r, --repo <NAME>` — restrict to specific repos (repeatable).
 * `-k, --keep-going` — continue across repos even if one command fails.
 * `-n, --dry-run` — print commands without executing them.
+* `-t, --tmux` — run the action in a per-task tmux display (one pane per repo,
+  in parallel); pairs with `--detached` and `--layout <L>`.
 
 ### Version sync target
 
@@ -143,6 +152,105 @@ bumping core 1.0.0 -> 1.1.0 (provides 'core')
   ✓ core version set to 1.1.0
   ↳ app now requires core 1.1.0
   ↳ engine now requires core 1.1.0
+```
+
+## tmux displays
+
+### Per-task displays (driven by the manifest)
+
+A task names a **display** in the manifest — the tmux session it runs in. When
+that task is executed, basis spawns the display — one pane per repository, in
+parallel — **lazily, at execution time** (nothing is created beforehand).
+
+Displays are meant for **long-running tasks whose output you want to watch**
+(running services, watchers). One-shot tasks like `build` or `clean` should stay
+inline — just don't give them a `display`:
+
+```yaml
+tasks:
+  run:
+    display: services         # run this task in the "services" display
+    layout: even-vertical
+  # build / clean: no display — they run inline in the current terminal
+```
+
+With that, `basis run` creates a session named `services`, gives every selected
+repo that defines the action its own pane (in the repo's directory, running the
+action's commands), applies the layout and attaches. Repos without that action
+are skipped. This is the "display под задачу" — declared once in the config,
+born only when the task runs.
+
+The natural use is a long-running `run` task — start every service and watch
+its output live, each in its own pane:
+
+```yaml
+tasks:
+  run:
+    display: services
+    layout: even-vertical     # stacked logs, one per repo
+repos:
+  - name: api
+    actions: { run: ["cargo run --bin api"] }
+  - name: worker
+    actions: { run: ["cargo run --bin worker"] }
+  - name: web
+    actions: { run: ["npm run dev"] }
+```
+
+```sh
+basis run            # api / worker / web each get a pane in "services", logs live
+```
+
+Commands are sent to a live shell, so a pane stays open after you Ctrl-C and you
+can restart the process in place. Re-running `basis run` re-attaches to the same
+session. Per-invocation overrides:
+
+```sh
+basis run                        # uses the task's display: setting
+basis run --tmux                 # force a display (named <constellation>-run)
+basis run --no-tmux              # force the current terminal for this run
+basis run --detached             # with tmux: create but don't attach
+basis run --layout tiled         # with tmux: override the layout
+```
+
+### Predefined dashboards (`displays:`)
+
+A *display* can also be a named tmux session described in the manifest — a
+standing dev dashboard (servers, watchers, logs, a scratch shell):
+
+```yaml
+displays:
+  dev:
+    session: myproj-dev      # optional, default <constellation>-<display>
+    layout: tiled            # tiled | even-horizontal | even-vertical | main-vertical | ...
+    panes:
+      - { repo: core,   command: "cargo watch -x run" }   # cmd in the repo dir
+      - { repo: engine, action: build }                   # reuse a repo action
+      - { name: logs,   cwd: ., command: "tail -f log/dev.log" }
+      - { name: shell }                                    # just a shell in base dir
+```
+
+```sh
+basis display              # list configured displays
+basis display dev          # create the session (if needed) and attach
+basis display dev --detached   # create but don't attach (prints attach hint)
+basis display dev --kill       # tear the session down
+```
+
+Each pane starts in `cwd` if given, else the `repo` directory, else the
+manifest directory. Its command is `command` if given, else the named `action`
+of `repo` (its commands joined with `&&`), else a plain shell. Commands are sent
+to a live shell, so a pane stays open after its task exits and you can re-run it.
+Re-running `basis display NAME` is idempotent — it attaches to the existing
+session instead of recreating it.
+
+`basis status` lists every configured display and whether its tmux session is
+currently up:
+
+```
+displays:
+  dev      ● running  3 pane(s), tiled            [demo-dev]
+  tests    ○ stopped  2 pane(s), even-horizontal  [demo-tests]
 ```
 
 ## Identity verification

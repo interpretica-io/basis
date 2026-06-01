@@ -27,16 +27,16 @@ pub enum Command {
         #[arg(long)]
         branch: Option<String>,
     },
-    /// Run the `build` action across the constellation.
-    Build(RunArgs),
-    /// Run the `clean` action across the constellation.
-    Clean(RunArgs),
-    /// Run an arbitrary named action defined in the manifest.
-    Run {
-        /// Action name (key under a repo's `actions`).
-        action: String,
-        #[command(flatten)]
-        args: RunArgs,
+    /// Launch (or manage) a tmux display: one pane per task.
+    Display {
+        /// Display name. Omit to list configured displays.
+        name: Option<String>,
+        /// Kill the display's tmux session instead of starting it.
+        #[arg(long)]
+        kill: bool,
+        /// Create the session but do not attach to it.
+        #[arg(long)]
+        detached: bool,
     },
     /// Show git and version status of every repository.
     Status,
@@ -47,6 +47,20 @@ pub enum Command {
         #[command(subcommand)]
         cmd: Option<VersionCommand>,
     },
+    /// Any other name runs the matching `action` across the constellation,
+    /// e.g. `basis build`, `basis test`, `basis run`. (Captured verbatim;
+    /// the first token is the action, the rest are parsed as `ActionArgs`.)
+    #[command(external_subcommand)]
+    Action(Vec<String>),
+}
+
+/// Parsed form of `basis <action> [flags]` (a non-reserved subcommand).
+#[derive(Parser, Debug)]
+pub struct ActionArgs {
+    /// Action name (key under a repo's `actions`).
+    pub action: String,
+    #[command(flatten)]
+    pub args: RunArgs,
 }
 
 #[derive(Args, Debug, Default)]
@@ -62,6 +76,23 @@ pub struct RunArgs {
     /// Print what would run without executing.
     #[arg(short = 'n', long)]
     pub dry_run: bool,
+
+    /// Force running the action in a per-task tmux display (overrides the
+    /// manifest's `tmux:` setting for this run).
+    #[arg(short = 't', long)]
+    pub tmux: bool,
+
+    /// Force running in the current terminal, even if the manifest enables tmux.
+    #[arg(long, conflicts_with = "tmux")]
+    pub no_tmux: bool,
+
+    /// With tmux: create the session but do not attach.
+    #[arg(long)]
+    pub detached: bool,
+
+    /// With tmux: tmux layout to apply (default: tiled).
+    #[arg(long)]
+    pub layout: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]

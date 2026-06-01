@@ -55,12 +55,64 @@ pub struct Repo {
     pub actions: BTreeMap<String, Vec<String>>,
 }
 
+/// A single pane within a tmux display.
+#[derive(Debug, Deserialize)]
+pub struct Pane {
+    /// Optional pane title (defaults to the repo name, action, or "shell").
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Repository whose directory the pane starts in (and whose `action` runs).
+    #[serde(default)]
+    pub repo: Option<String>,
+    /// Raw shell command to run in the pane.
+    #[serde(default)]
+    pub command: Option<String>,
+    /// Name of a repo action to run in the pane (mutually used with `repo`).
+    #[serde(default)]
+    pub action: Option<String>,
+    /// Explicit working directory (relative to the manifest), overrides `repo`.
+    #[serde(default)]
+    pub cwd: Option<PathBuf>,
+}
+
+/// A tmux "display": a session laid out with one pane per task.
+#[derive(Debug, Deserialize)]
+pub struct Display {
+    /// tmux session name (default: `<constellation>-<display>`).
+    #[serde(default)]
+    pub session: Option<String>,
+    /// tmux layout applied after panes are created.
+    #[serde(default = "default_layout")]
+    pub layout: String,
+    pub panes: Vec<Pane>,
+}
+
+fn default_layout() -> String {
+    "tiled".to_string()
+}
+
+/// Per-task execution options (keyed by action name).
+#[derive(Debug, Deserialize, Default)]
+pub struct TaskConfig {
+    /// Name of the tmux display (session) to run this task in. When set, the
+    /// task runs in a per-task tmux display (one pane per repo); otherwise it
+    /// runs inline in the current terminal.
+    #[serde(default)]
+    pub display: Option<String>,
+    /// tmux layout to use when the task runs in a display.
+    #[serde(default)]
+    pub layout: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Manifest {
     pub constellation: String,
     /// Optional canonical version of the whole constellation.
     #[serde(default)]
     pub version: Option<String>,
+    /// Per-task execution options, keyed by action name.
+    #[serde(default)]
+    pub tasks: BTreeMap<String, TaskConfig>,
     /// Default allowed e-mail domain for git/GPG identity (single-value form).
     #[serde(default)]
     pub email_domain: Option<String>,
@@ -68,6 +120,9 @@ pub struct Manifest {
     #[serde(default)]
     pub email_domains: Vec<String>,
     pub repos: Vec<Repo>,
+    /// Named tmux displays describing dev dashboards for the constellation.
+    #[serde(default)]
+    pub displays: BTreeMap<String, Display>,
 }
 
 /// A loaded manifest together with the directory it lives in.
@@ -105,6 +160,32 @@ impl Config {
     /// Absolute (or manifest-relative) directory of a repository.
     pub fn repo_dir(&self, repo: &Repo) -> PathBuf {
         self.base_dir.join(&repo.path)
+    }
+
+    /// The configured display (tmux session) name for `action`, if it runs in
+    /// a display.
+    pub fn task_display(&self, action: &str) -> Option<String> {
+        self.manifest
+            .tasks
+            .get(action)
+            .and_then(|t| t.display.clone())
+    }
+
+    /// The configured tmux layout for `action`, if any.
+    pub fn task_layout(&self, action: &str) -> Option<String> {
+        self.manifest
+            .tasks
+            .get(action)
+            .and_then(|t| t.layout.clone())
+    }
+
+    /// Look up a repository by name.
+    pub fn find_repo(&self, name: &str) -> Result<&Repo> {
+        self.manifest
+            .repos
+            .iter()
+            .find(|r| r.name == name)
+            .with_context(|| format!("unknown repository '{name}'"))
     }
 
     /// Allowed e-mail domains for a repo's identity: the repo-level policy if
