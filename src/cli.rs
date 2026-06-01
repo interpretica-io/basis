@@ -16,6 +16,17 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
+    /// Clone a constellation: fetch its manifest repo, then every member repo.
+    Install {
+        /// Manifest repository: `org/repo` (GitHub) or a full git URL.
+        spec: String,
+        /// Directory to create for the constellation (default: the repo name).
+        #[arg(long)]
+        into: Option<PathBuf>,
+        /// Branch to check out for the manifest repository.
+        #[arg(long)]
+        branch: Option<String>,
+    },
     /// Run the `build` action across the constellation.
     Build(RunArgs),
     /// Run the `clean` action across the constellation.
