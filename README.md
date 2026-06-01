@@ -112,7 +112,11 @@ looked up in the manifest. The reserved names `install`, `status`, `verify`,
 
 Common flags:
 
-* `-f, --file <PATH>` — manifest path (default `basis.yaml`).
+* `-f, --file <PATH>` — manifest path (default `basis.yaml`). A bare filename is
+  searched for **upward** from the current directory (like git finds `.git`), so
+  you can run `basis` from any subfolder of the constellation. A path with a
+  directory component (e.g. `../basis.yaml`) is used as-is. Repo paths resolve
+  against the directory the manifest was found in.
 * `-r, --repo <NAME>` — restrict to specific repos (repeatable).
 * `-k, --keep-going` — continue across repos even if one command fails.
 * `-n, --dry-run` — print commands without executing them.

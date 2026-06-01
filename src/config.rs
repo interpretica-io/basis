@@ -134,8 +134,40 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load(path: &Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path)
+    /// Resolve the manifest path. A bare filename (e.g. the default
+    /// `basis.yaml`) is searched for upward from the current directory, like
+    /// git looks for `.git`. A path with a directory component is used as-is.
+    pub fn resolve_path(file: &Path) -> Result<PathBuf> {
+        let has_dir = file
+            .parent()
+            .map(|p| !p.as_os_str().is_empty())
+            .unwrap_or(false);
+        if has_dir {
+            return Ok(file.to_path_buf());
+        }
+
+        let cwd = std::env::current_dir().context("getting current directory")?;
+        let mut dir = cwd.as_path();
+        loop {
+            let candidate = dir.join(file);
+            if candidate.is_file() {
+                return Ok(candidate);
+            }
+            match dir.parent() {
+                Some(parent) => dir = parent,
+                None => break,
+            }
+        }
+        bail!(
+            "no {} found in {} or any parent directory",
+            file.display(),
+            cwd.display()
+        );
+    }
+
+    pub fn load(file: &Path) -> Result<Self> {
+        let path = Self::resolve_path(file)?;
+        let text = std::fs::read_to_string(&path)
             .with_context(|| format!("reading manifest {}", path.display()))?;
         let manifest: Manifest = serde_yaml::from_str(&text)
             .with_context(|| format!("parsing manifest {}", path.display()))?;
