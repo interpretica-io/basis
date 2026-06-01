@@ -162,7 +162,10 @@ pub fn show(cfg: &Config) -> Result<()> {
 
     if url_ok + url_bad > 0 {
         if url_bad == 0 {
-            println!("{} {url_ok} repo(s) match canonical URL", "remotes:".green().bold());
+            println!(
+                "{} {url_ok} repo(s) match canonical URL",
+                "remotes:".green().bold()
+            );
         } else {
             println!(
                 "{} {url_bad} repo(s) differ from canonical URL",
