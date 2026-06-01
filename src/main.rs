@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod git;
 mod gpg;
+mod install;
 mod runner;
 mod status;
 mod verify;
@@ -22,36 +23,42 @@ fn main() {
 
 fn run() -> Result<()> {
     let cli = Cli::parse();
-    let cfg = config::Config::load(&cli.file)?;
+    let file = cli.file;
+    // `install` fetches the manifest itself, so config is loaded lazily.
+    let load = || config::Config::load(&file);
 
     match cli.command {
-        Command::Build(args) => runner::run_action(&cfg, "build", &args),
-        Command::Clean(args) => runner::run_action(&cfg, "clean", &args),
-        Command::Run { action, args } => runner::run_action(&cfg, &action, &args),
-        Command::Status => status::show(&cfg),
-        Command::Verify => verify::run(&cfg),
-        Command::Version { cmd } => match cmd.unwrap_or(VersionCommand::Show) {
-            VersionCommand::Show => version::show(&cfg),
-            VersionCommand::Set { version } => version::set_all(&cfg, &version),
-            VersionCommand::Sync { to } => version::sync(&cfg, to.as_deref()),
-            VersionCommand::Bump {
-                repo,
-                major,
-                minor,
-                patch: _,
-                to,
-            } => {
-                let how = if let Some(v) = to {
-                    version::Bump::To(v)
-                } else if major {
-                    version::Bump::Major
-                } else if minor {
-                    version::Bump::Minor
-                } else {
-                    version::Bump::Patch
-                };
-                version::bump(&cfg, &repo, how)
+        Command::Install { spec, into, branch } => install::run(&spec, into, branch, &file),
+        Command::Build(args) => runner::run_action(&load()?, "build", &args),
+        Command::Clean(args) => runner::run_action(&load()?, "clean", &args),
+        Command::Run { action, args } => runner::run_action(&load()?, &action, &args),
+        Command::Status => status::show(&load()?),
+        Command::Verify => verify::run(&load()?),
+        Command::Version { cmd } => {
+            let cfg = load()?;
+            match cmd.unwrap_or(VersionCommand::Show) {
+                VersionCommand::Show => version::show(&cfg),
+                VersionCommand::Set { version } => version::set_all(&cfg, &version),
+                VersionCommand::Sync { to } => version::sync(&cfg, to.as_deref()),
+                VersionCommand::Bump {
+                    repo,
+                    major,
+                    minor,
+                    patch: _,
+                    to,
+                } => {
+                    let how = if let Some(v) = to {
+                        version::Bump::To(v)
+                    } else if major {
+                        version::Bump::Major
+                    } else if minor {
+                        version::Bump::Minor
+                    } else {
+                        version::Bump::Patch
+                    };
+                    version::bump(&cfg, &repo, how)
+                }
             }
-        },
+        }
     }
 }
