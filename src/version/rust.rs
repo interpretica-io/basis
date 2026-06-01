@@ -12,8 +12,8 @@ fn load(repo_dir: &Path) -> Result<Option<DocumentMut>> {
     if !path.exists() {
         return Ok(None);
     }
-    let text = std::fs::read_to_string(&path)
-        .with_context(|| format!("reading {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
     let doc: DocumentMut = text
         .parse()
         .with_context(|| format!("parsing {}", path.display()))?;
@@ -47,14 +47,11 @@ pub fn read_version(repo_dir: &Path) -> Result<Option<String>> {
 /// Write `[package].version`, preserving formatting and comments.
 pub fn write_version(repo_dir: &Path, version: &str) -> Result<()> {
     let path = manifest_path(repo_dir);
-    let mut doc = load(repo_dir)?
-        .with_context(|| format!("no Cargo.toml in {}", repo_dir.display()))?;
+    let mut doc =
+        load(repo_dir)?.with_context(|| format!("no Cargo.toml in {}", repo_dir.display()))?;
 
     if doc.get("package").and_then(|p| p.get("version")).is_none() {
-        anyhow::bail!(
-            "{} has no [package].version to update",
-            path.display()
-        );
+        anyhow::bail!("{} has no [package].version to update", path.display());
     }
     doc["package"]["version"] = value(version);
 
@@ -85,17 +82,16 @@ pub fn update_dependency(repo_dir: &Path, dep_name: &str, new_version: &str) -> 
             .iter()
             .filter(|(key, item)| {
                 // A `package = "..."` rename takes precedence over the key.
-                let real = item
-                    .get("package")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or(key);
+                let real = item.get("package").and_then(|v| v.as_str()).unwrap_or(key);
                 real == dep_name
             })
             .map(|(key, _)| key.to_string())
             .collect();
 
         for key in keys {
-            let Some(item) = table.get_mut(&key) else { continue };
+            let Some(item) = table.get_mut(&key) else {
+                continue;
+            };
             if let Some(s) = item.as_str() {
                 // Shorthand `dep = "1.0.0"`.
                 if s != new_version {
