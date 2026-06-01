@@ -58,7 +58,10 @@ pub fn check(cfg: &Config, repo: &Repo) -> Identity {
     }
 
     let dir = cfg.repo_dir(repo);
-    let checks = vec![check_git_email(&dir, &domains), check_gpg_key(&dir, &domains)];
+    let checks = vec![
+        check_git_email(&dir, &domains),
+        check_gpg_key(&dir, &domains),
+    ];
     Identity {
         applies: true,
         domains,
@@ -80,7 +83,11 @@ pub fn run(cfg: &Config) -> Result<()> {
             continue;
         }
         checked += 1;
-        println!("  {} {}", "allowed domains:".dimmed(), id.domains.join(", "));
+        println!(
+            "  {} {}",
+            "allowed domains:".dimmed(),
+            id.domains.join(", ")
+        );
         for c in &id.checks {
             print_check(c);
         }
@@ -157,9 +164,15 @@ fn check_gpg_key(dir: &std::path::Path, domains: &[String]) -> Check {
     } else if lookup.emails.is_empty() {
         (State::Fail, format!("{query} — key has no e-mail user ID"))
     } else if lookup.emails.iter().any(|e| email_on_domain(e, domains)) {
-        (State::Pass, format!("{query} [{}]", lookup.emails.join(", ")))
+        (
+            State::Pass,
+            format!("{query} [{}]", lookup.emails.join(", ")),
+        )
     } else {
-        (State::Fail, format!("{query} [{}]", lookup.emails.join(", ")))
+        (
+            State::Fail,
+            format!("{query} [{}]", lookup.emails.join(", ")),
+        )
     };
 
     Check {
