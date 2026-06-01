@@ -237,7 +237,12 @@ pub fn bump(cfg: &Config, repo_name: &str, how: Bump) -> Result<()> {
         println!("  {} already at {new_version}", "·".dimmed());
     } else {
         write_repo(cfg, target, &new_version)?;
-        println!("  {} {} version set to {}", "✓".green(), repo_name, new_version);
+        println!(
+            "  {} {} version set to {}",
+            "✓".green(),
+            repo_name,
+            new_version
+        );
     }
 
     // Propagate the new version into every other repo that depends on it.
