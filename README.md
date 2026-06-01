@@ -25,6 +25,31 @@ cargo install --path .
 cargo run -- <args>
 ```
 
+## Installing a constellation
+
+`basis install` bootstraps a whole constellation from its manifest repository:
+
+```sh
+basis install acme/platform          # -> https://github.com/acme/platform
+basis install git@github.com:acme/platform.git --into platform --branch main
+```
+
+It clones the manifest repo into a directory (named after the repo by default,
+or `--into DIR`), reads its `basis.yaml`, and then clones every member repo with
+a `url:` into its `path`, next to the manifest:
+
+```
+platform/
+  basis.yaml          # from acme/platform
+  core/               # cloned from its url:
+  engine/             # cloned from its url:
+```
+
+`org/repo` is shorthand for a GitHub HTTPS URL; a full git URL (`https://…`,
+`git@…`, `file://…`) works too. Members already present are skipped, members
+without a `url:` are reported. After installing, run `basis status` /
+`basis build` from inside the constellation directory.
+
 ## The manifest (`basis.yaml`)
 
 ```yaml
@@ -63,6 +88,7 @@ repos:
 ## Commands
 
 ```sh
+basis install <org/repo> [--into DIR] [--branch B]   # clone a constellation
 basis build [--repo NAME]... [-k] [-n]   # run the `build` action
 basis clean [--repo NAME]... [-k] [-n]   # run the `clean` action
 basis run <action> [--repo NAME]...      # run any named action
