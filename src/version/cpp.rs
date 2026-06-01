@@ -33,8 +33,8 @@ fn cmake_version_re() -> Regex {
 pub fn read_version(repo_dir: &Path, repo: &Repo) -> Result<Option<String>> {
     let vf = version_file(repo_dir, repo);
     if vf.exists() {
-        let text = std::fs::read_to_string(&vf)
-            .with_context(|| format!("reading {}", vf.display()))?;
+        let text =
+            std::fs::read_to_string(&vf).with_context(|| format!("reading {}", vf.display()))?;
         let v = text.trim().to_string();
         if !v.is_empty() {
             return Ok(Some(v));
@@ -43,8 +43,8 @@ pub fn read_version(repo_dir: &Path, repo: &Repo) -> Result<Option<String>> {
 
     let cf = cmake_file(repo_dir, repo);
     if cf.exists() {
-        let text = std::fs::read_to_string(&cf)
-            .with_context(|| format!("reading {}", cf.display()))?;
+        let text =
+            std::fs::read_to_string(&cf).with_context(|| format!("reading {}", cf.display()))?;
         if let Some(caps) = cmake_version_re().captures(&text) {
             return Ok(Some(caps[2].to_string()));
         }
@@ -61,8 +61,8 @@ pub fn write_version(repo_dir: &Path, repo: &Repo, version: &str) -> Result<()> 
 
     let cf = cmake_file(repo_dir, repo);
     if cf.exists() {
-        let text = std::fs::read_to_string(&cf)
-            .with_context(|| format!("reading {}", cf.display()))?;
+        let text =
+            std::fs::read_to_string(&cf).with_context(|| format!("reading {}", cf.display()))?;
         let re = cmake_version_re();
         if re.is_match(&text) {
             let patched = re.replace(&text, |caps: &regex::Captures| {
@@ -99,8 +99,7 @@ pub fn update_dependency(
     if !cf.exists() {
         return Ok(0);
     }
-    let text = std::fs::read_to_string(&cf)
-        .with_context(|| format!("reading {}", cf.display()))?;
+    let text = std::fs::read_to_string(&cf).with_context(|| format!("reading {}", cf.display()))?;
 
     let re = find_package_re(dep_name);
     let mut changed = 0;
