@@ -87,6 +87,8 @@ repos:
 
 ## Commands
 
+basis                                    # list all actions in the manifest
+
 # Any non-reserved name runs the matching `action` across the constellation:
 basis <action> [--repo NAME]... [-k] [-n] [--tmux|--no-tmux]
 basis build                              # run the `build` action everywhere

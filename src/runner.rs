@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::process::Command;
 
 use anyhow::{bail, Result};
@@ -5,6 +6,42 @@ use colored::Colorize;
 
 use crate::cli::RunArgs;
 use crate::config::Config;
+
+/// List every action defined in the manifest, which repos provide it, and the
+/// display it runs in (if any). Shown when `basis` is run with no subcommand.
+pub fn list_actions(cfg: &Config) -> Result<()> {
+    println!("{} {}", "constellation:".bold(), cfg.manifest.constellation);
+
+    let mut actions: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for repo in &cfg.manifest.repos {
+        for action in repo.actions.keys() {
+            actions.entry(action).or_default().push(&repo.name);
+        }
+    }
+
+    if actions.is_empty() {
+        println!("\nno actions defined in the manifest");
+        return Ok(());
+    }
+
+    println!("\n{}", "actions:".bold());
+    let width = actions.keys().map(|a| a.len()).max().unwrap_or(0).max(4);
+    for (action, repos) in &actions {
+        let repolist = repos.join(", ");
+        match cfg.task_display(action) {
+            Some(name) => println!(
+                "  {:<width$}  {}  {}",
+                action,
+                repolist.dimmed(),
+                format!("→ display {name}").cyan(),
+                width = width
+            ),
+            None => println!("  {:<width$}  {}", action, repolist.dimmed(), width = width),
+        }
+    }
+    println!("\nrun any with {}", "basis <action>".bold());
+    Ok(())
+}
 
 /// Run a named action (e.g. "build" or "clean") across the selected repos.
 pub fn run_action(cfg: &Config, action: &str, args: &RunArgs) -> Result<()> {

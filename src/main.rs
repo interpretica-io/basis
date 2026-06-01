@@ -30,7 +30,13 @@ fn run() -> Result<()> {
     // `install` fetches the manifest itself, so config is loaded lazily.
     let load = || config::Config::load(&file);
 
-    match cli.command {
+    // No subcommand: list the actions available in the current manifest.
+    let command = match cli.command {
+        Some(c) => c,
+        None => return runner::list_actions(&load()?),
+    };
+
+    match command {
         Command::Install { spec, into, branch } => install::run(&spec, into, branch, &file),
         Command::Action(tokens) => {
             // tokens[0] is the action name; the rest are its flags.

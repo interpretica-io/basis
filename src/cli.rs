@@ -11,7 +11,7 @@ pub struct Cli {
     pub file: PathBuf,
 
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Subcommand, Debug)]
