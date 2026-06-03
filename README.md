@@ -50,6 +50,44 @@ platform/
 without a `url:` are reported. After installing, run `basis status` /
 `basis build` from inside the constellation directory.
 
+Run `basis install` **without an argument** from inside an existing
+constellation (the manifest is found by walking up, like every other command) to
+clone just the members that are still missing — handy after adding a repo to the
+manifest, or to finish a partial checkout. Present members are left untouched.
+
+### Auxiliary files (`files:`)
+
+`basis install` clones the manifest repo, but a constellation often needs loose
+files too — helper scripts a `_postclone` hook calls, shared configs. Declare
+them so they are fetched explicitly instead of silently depending on a full
+clone of the manifest repo:
+
+```yaml
+files:
+  - path: gen-dbg.sh
+    url: https://raw.githubusercontent.com/acme/constellation/main/gen-dbg.sh
+    executable: true
+```
+
+They are downloaded (via `curl`) **before** members are cloned, so a hook can
+use them. Files already present are left untouched.
+
+### Post-clone hook (`_postclone`)
+
+A repo may define a special `_postclone` action — basis runs it (in the repo's
+directory) automatically right after that repo is cloned by `basis install`. Use
+it to patch generated or local-dev files. Actions whose name starts with `_` are
+hooks: they run automatically and are hidden from the `basis` action listing.
+
+```yaml
+  - name: release-generator
+    path: release-generator
+    url: https://github.com/acme/release-generator
+    lang: other
+    actions:
+      _postclone: ["../gen-dbg.sh"]   # regenerate local-dev overrides on clone
+```
+
 ## The manifest (`basis.yaml`)
 
 ```yaml
@@ -96,7 +134,10 @@ basis run                                # run the `run` action (e.g. services)
 basis test --repo core --tmux            # run `test`, forced into a tmux display
 
 # Reserved subcommands (cannot be used as action names):
-basis install <org/repo> [--into DIR] [--branch B]   # clone a constellation
+basis install [org/repo] [--into DIR] [--branch B]   # clone a constellation
+                                                     # (no arg: clone missing
+                                                     #  members of current manifest)
+basis update [--repo NAME]...            # git pull --ff-only the cloned repos
 basis status                             # git + version status of all repos
 basis verify                             # check git/GPG e-mail domains
 basis display [NAME] [--detached|--kill] # launch a tmux dev dashboard
@@ -109,7 +150,7 @@ basis version bump <repo> [--major|--minor|--patch|--to X.Y.Z]
 ```
 
 `build`, `clean`, `run`, `test`, … are not special — they are just action names
-looked up in the manifest. The reserved names `install`, `status`, `verify`,
+looked up in the manifest. The reserved names `install`, `update`, `status`, `verify`,
 `display`, `version` are the only ones that cannot double as actions.
 
 Common flags:
@@ -209,7 +250,14 @@ basis run            # api / worker / web each get a pane in "services", logs li
 
 Commands are sent to a live shell, so a pane stays open after you Ctrl-C and you
 can restart the process in place. Re-running `basis run` re-attaches to the same
-session. Per-invocation overrides:
+session.
+
+**Closing a display:** basis binds `Ctrl-q` (no prefix) to `kill-session` on
+every display it creates, so pressing **Ctrl+Q** while attached closes the
+display and stops the processes running in it. A normal `Ctrl-b d` detach still
+just detaches, leaving the display running in the background.
+
+Per-invocation overrides:
 
 ```sh
 basis run                        # uses the task's display: setting
