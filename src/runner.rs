@@ -15,6 +15,10 @@ pub fn list_actions(cfg: &Config) -> Result<()> {
     let mut actions: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
     for repo in &cfg.manifest.repos {
         for action in repo.actions.keys() {
+            // Hide hooks like `_postclone` — they run automatically, not by name.
+            if action.starts_with('_') {
+                continue;
+            }
             actions.entry(action).or_default().push(&repo.name);
         }
     }
