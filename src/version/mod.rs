@@ -28,6 +28,7 @@ pub fn read_repo(cfg: &Config, repo: &Repo) -> Result<Option<String>> {
     match repo.lang {
         Lang::Rust => rust::read_version(&dir),
         Lang::Cpp => cpp::read_version(&dir, repo),
+        Lang::Other => Ok(None),
     }
 }
 
@@ -37,6 +38,7 @@ pub fn write_repo(cfg: &Config, repo: &Repo, version: &str) -> Result<()> {
     match repo.lang {
         Lang::Rust => rust::write_version(&dir, version),
         Lang::Cpp => cpp::write_version(&dir, repo, version),
+        Lang::Other => Ok(()), // non-versioned repo: nothing to write
     }
 }
 
@@ -72,7 +74,7 @@ pub fn show(cfg: &Config) -> Result<()> {
             _ => "?".yellow(),
         };
         println!(
-            "  {marker} {:<width$}  {:<4}  {}",
+            "  {marker} {:<width$}  {:<5}  {}",
             info.name,
             info.lang.to_string(),
             ver,
@@ -150,6 +152,9 @@ pub fn sync(cfg: &Config, to: Option<&str>) -> Result<()> {
 
 fn apply(cfg: &Config, version: &str) -> Result<()> {
     for repo in &cfg.manifest.repos {
+        if repo.lang == Lang::Other {
+            continue; // non-versioned repo
+        }
         let before = read_repo(cfg, repo).unwrap_or(None);
         if before.as_deref() == Some(version) {
             println!("  {} {} already {}", "·".dimmed(), repo.name, version);
@@ -255,6 +260,7 @@ pub fn bump(cfg: &Config, repo_name: &str, how: Bump) -> Result<()> {
         let changed = match dependent.lang {
             Lang::Rust => rust::update_dependency(&dir, &dep_name, &new_version)?,
             Lang::Cpp => cpp::update_dependency(&dir, dependent, &dep_name, &new_version)?,
+            Lang::Other => 0,
         };
         if changed > 0 {
             touched += 1;
