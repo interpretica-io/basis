@@ -10,6 +10,10 @@ use serde::Deserialize;
 pub enum Lang {
     Rust,
     Cpp,
+    /// Non-versioned repo (tooling, scripts, docs). Build/run actions still
+    /// work; version commands treat it as having no version.
+    #[serde(alias = "none")]
+    Other,
 }
 
 impl std::fmt::Display for Lang {
@@ -17,6 +21,7 @@ impl std::fmt::Display for Lang {
         match self {
             Lang::Rust => write!(f, "rust"),
             Lang::Cpp => write!(f, "cpp"),
+            Lang::Other => write!(f, "other"),
         }
     }
 }
@@ -104,6 +109,20 @@ pub struct TaskConfig {
     pub layout: Option<String>,
 }
 
+/// An auxiliary file the constellation needs (scripts, configs). `basis install`
+/// downloads it so the manifest does not silently depend on files that only
+/// exist in a full clone of the manifest repo.
+#[derive(Debug, Deserialize)]
+pub struct FileSpec {
+    /// Destination path, relative to the manifest.
+    pub path: PathBuf,
+    /// URL to download the file from.
+    pub url: String,
+    /// Make the file executable after downloading.
+    #[serde(default)]
+    pub executable: bool,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Manifest {
     pub constellation: String,
@@ -120,6 +139,9 @@ pub struct Manifest {
     #[serde(default)]
     pub email_domains: Vec<String>,
     pub repos: Vec<Repo>,
+    /// Auxiliary files to download on install (scripts, shared configs).
+    #[serde(default)]
+    pub files: Vec<FileSpec>,
     /// Named tmux displays describing dev dashboards for the constellation.
     #[serde(default)]
     pub displays: BTreeMap<String, Display>,
