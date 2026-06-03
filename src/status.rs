@@ -127,7 +127,7 @@ pub fn show(cfg: &Config) -> Result<()> {
         let ver = info.version.as_deref().unwrap_or("—");
 
         println!(
-            "  {:<name_w$}  {:<4}  {:<10}  {}{}  {}",
+            "  {:<name_w$}  {:<5}  {:<10}  {}{}  {}",
             repo.name.bold(),
             info.lang.to_string(),
             ver,
