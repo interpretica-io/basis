@@ -4,7 +4,10 @@ use std::process::Command;
 use anyhow::{bail, Context, Result};
 use colored::Colorize;
 
-use crate::config::Config;
+use crate::config::{Config, Repo};
+
+/// Action name run automatically right after a repo is cloned.
+const POSTCLONE: &str = "_postclone";
 
 /// Install a whole constellation: clone the manifest repository, read its
 /// `basis.yaml`, then clone every member repository next to it.
@@ -59,7 +62,62 @@ pub fn run(
         cfg.manifest.repos.len()
     );
 
+    fetch_files(&cfg)?;
     clone_members(&cfg)
+}
+
+/// Install from the current manifest (no SPEC): download declared files, then
+/// clone the members that are not present yet and run their `_postclone` hooks.
+pub fn run_current(cfg: &Config) -> Result<()> {
+    println!(
+        "{} {} ({} repos)",
+        "constellation:".bold(),
+        cfg.manifest.constellation,
+        cfg.manifest.repos.len()
+    );
+    fetch_files(cfg)?;
+    clone_members(cfg)
+}
+
+/// Download the auxiliary files declared in `files:`, before members are cloned
+/// (so `_postclone` hooks can use them). Files already present are left alone.
+fn fetch_files(cfg: &Config) -> Result<()> {
+    for f in &cfg.manifest.files {
+        let dest = cfg.base_dir.join(&f.path);
+        if dest.exists() {
+            println!("  {} {}: present, skipped", "·".dimmed(), f.path.display());
+            continue;
+        }
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("creating {}", parent.display()))?;
+        }
+        println!(
+            "{} {} {}",
+            "fetching".bold(),
+            f.path.display(),
+            format!("({})", f.url).dimmed()
+        );
+        let status = Command::new("curl")
+            .args(["-fsSL", "-o"])
+            .arg(&dest)
+            .arg(&f.url)
+            .status()
+            .context("failed to run curl")?;
+        if !status.success() {
+            bail!("downloading {} {status}", f.url);
+        }
+        if f.executable {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = std::fs::metadata(&dest)?.permissions();
+                perms.set_mode(0o755);
+                std::fs::set_permissions(&dest, perms)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Clone each member repository that has a `url` into its `path`.
@@ -89,7 +147,14 @@ fn clone_members(cfg: &Config) -> Result<()> {
             format!("({url})").dimmed()
         );
         match git_clone(url, &dest, None) {
-            Ok(()) => cloned += 1,
+            Ok(()) => {
+                cloned += 1;
+                // Run the repo's post-clone hook (e.g. patch generated files).
+                if let Err(e) = run_postclone(cfg, repo) {
+                    println!("  {} {POSTCLONE}: {e}", "failed:".red());
+                    failed.push(repo.name.clone());
+                }
+            }
             Err(e) => {
                 println!("  {} {e}", "failed:".red());
                 failed.push(repo.name.clone());
@@ -104,6 +169,29 @@ fn clone_members(cfg: &Config) -> Result<()> {
     );
     if !failed.is_empty() {
         bail!("failed to clone: {}", failed.join(", "));
+    }
+    Ok(())
+}
+
+/// Run a repo's `_postclone` action (if any) in its directory, right after it
+/// is cloned. Used to patch generated/local files (e.g. regenerate `.dbg`).
+fn run_postclone(cfg: &Config, repo: &Repo) -> Result<()> {
+    let Some(commands) = repo.actions.get(POSTCLONE) else {
+        return Ok(());
+    };
+    let dir = cfg.repo_dir(repo);
+    println!("  {} {POSTCLONE}", "↳".blue());
+    for cmd in commands {
+        println!("  {} {cmd}", "$".green());
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg(cmd)
+            .current_dir(&dir)
+            .status()
+            .context("failed to run sh")?;
+        if !status.success() {
+            bail!("`{cmd}` {status}");
+        }
     }
     Ok(())
 }
