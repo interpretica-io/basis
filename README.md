@@ -257,6 +257,13 @@ every display it creates, so pressing **Ctrl+Q** while attached closes the
 display and stops the processes running in it. A normal `Ctrl-b d` detach still
 just detaches, leaving the display running in the background.
 
+**Restarting a display:** **Ctrl+R** (no prefix) restarts every pane — it sends
+`Ctrl-C` to interrupt the running process and re-runs the command basis started
+the pane with (stored in the `@basis_restart` pane option). Handy after a code
+change: one key rebuilds/reruns the whole task. (Both bindings are tmux
+server-global, so inside tmux they take over Ctrl+Q / Ctrl+R — the latter
+replaces the shell's reverse-i-search in panes.)
+
 Per-invocation overrides:
 
 ```sh

@@ -215,6 +215,22 @@ fn build_session(session: &str, window: &str, panes: &[ResolvedPane], layout: &s
     // processes running in it.
     tmux(&["bind-key", "-n", "C-q", "kill-session"]).ok();
 
+    // Ctrl-r (no prefix) restarts the display: for every pane in the current
+    // window, interrupt the running process (C-c) and re-run the command basis
+    // started it with (stored per-pane in @basis_restart). `##{pane_id}` is
+    // escaped so list-panes — not run-shell — expands it.
+    tmux(&[
+        "bind-key",
+        "-n",
+        "C-r",
+        "run-shell",
+        "tmux list-panes -t \"#{window_id}\" -F \"##{pane_id}\" | while read p; do \
+         c=$(tmux show-options -pqv -t \"$p\" @basis_restart); \
+         [ -n \"$c\" ] && tmux send-keys -t \"$p\" C-c && tmux send-keys -t \"$p\" \"$c\" Enter; \
+         done",
+    ])
+    .ok();
+
     for (pane, id) in panes.iter().zip(&pane_ids) {
         let id = id.trim();
         tmux(&["select-pane", "-t", id, "-T", &pane.title]).ok();
@@ -223,6 +239,12 @@ fn build_session(session: &str, window: &str, panes: &[ResolvedPane], layout: &s
         // regardless of the user's interactive shell (fish, zsh, ...).
         for cmd in &pane.commands {
             tmux(&["send-keys", "-t", id, &sh_wrap(cmd), "Enter"])?;
+        }
+        // Remember how to restart this pane (for the Ctrl-r binding): re-run all
+        // its commands in order via one `sh -c`.
+        if !pane.commands.is_empty() {
+            let restart = sh_wrap(&pane.commands.join("; "));
+            tmux(&["set-option", "-p", "-t", id, "@basis_restart", &restart]).ok();
         }
     }
     Ok(())
