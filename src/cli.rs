@@ -16,10 +16,13 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug)]
 pub enum Command {
-    /// Clone a constellation: fetch its manifest repo, then every member repo.
+    /// Clone a constellation. With a SPEC, fetch that manifest repo then its
+    /// members. Without one, clone the members missing from the current
+    /// manifest. Cloned repos get their `_postclone` hook run.
     Install {
-        /// Manifest repository: `org/repo` (GitHub) or a full git URL.
-        spec: String,
+        /// Manifest repository: `org/repo` (GitHub) or a full git URL. Omit to
+        /// use the current `basis.yaml` and only clone missing members.
+        spec: Option<String>,
         /// Directory to create for the constellation (default: the repo name).
         #[arg(long)]
         into: Option<PathBuf>,
@@ -37,6 +40,12 @@ pub enum Command {
         /// Create the session but do not attach to it.
         #[arg(long)]
         detached: bool,
+    },
+    /// Update cloned repositories with `git pull --ff-only`.
+    Update {
+        /// Only update these repositories (by name). Repeatable.
+        #[arg(short, long = "repo")]
+        repos: Vec<String>,
     },
     /// Show git and version status of every repository.
     Status,
