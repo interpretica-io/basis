@@ -6,6 +6,7 @@ mod gpg;
 mod install;
 mod runner;
 mod status;
+mod update;
 mod verify;
 mod version;
 
@@ -37,7 +38,10 @@ fn run() -> Result<()> {
     };
 
     match command {
-        Command::Install { spec, into, branch } => install::run(&spec, into, branch, &file),
+        Command::Install { spec, into, branch } => match spec {
+            Some(spec) => install::run(&spec, into, branch, &file),
+            None => install::run_current(&load()?),
+        },
         Command::Action(tokens) => {
             // tokens[0] is the action name; the rest are its flags.
             let argv = std::iter::once(OsString::from("basis"))
@@ -50,6 +54,7 @@ fn run() -> Result<()> {
             kill,
             detached,
         } => display::run(&load()?, name, kill, detached),
+        Command::Update { repos } => update::run(&load()?, &repos),
         Command::Status => status::show(&load()?),
         Command::Verify => verify::run(&load()?),
         Command::Version { cmd } => {
