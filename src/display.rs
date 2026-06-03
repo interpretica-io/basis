@@ -8,11 +8,12 @@ use colored::Colorize;
 use crate::cli::RunArgs;
 use crate::config::{Config, Display};
 
-/// A pane resolved to a concrete working directory and (optional) command.
+/// A pane resolved to a concrete working directory and its commands. Each
+/// command is sent to the pane on its own line (no `&&` joining).
 struct ResolvedPane {
     title: String,
     dir: PathBuf,
-    command: Option<String>,
+    commands: Vec<String>,
 }
 
 /// Summary of one display for `basis status`.
@@ -101,7 +102,7 @@ pub fn launch_task(cfg: &Config, action: &str, args: &RunArgs, session: &str) ->
         panes.push(ResolvedPane {
             title: repo.name.clone(),
             dir: cfg.repo_dir(repo),
-            command: Some(cmds.join(" && ")),
+            commands: cmds.clone(),
         });
     }
     if panes.is_empty() {
@@ -210,14 +211,28 @@ fn build_session(session: &str, window: &str, panes: &[ResolvedPane], layout: &s
     // Show pane titles along the borders.
     tmux(&["set-option", "-t", session, "pane-border-status", "top"]).ok();
 
+    // Ctrl-q (no prefix) closes the display: kill the current session and the
+    // processes running in it.
+    tmux(&["bind-key", "-n", "C-q", "kill-session"]).ok();
+
     for (pane, id) in panes.iter().zip(&pane_ids) {
         let id = id.trim();
         tmux(&["select-pane", "-t", id, "-T", &pane.title]).ok();
-        if let Some(cmd) = &pane.command {
-            tmux(&["send-keys", "-t", id, cmd, "Enter"])?;
+        // Send each command on its own line (no `&&` joining). Run each via
+        // `sh -c` so commands are POSIX-interpreted — same as inline actions —
+        // regardless of the user's interactive shell (fish, zsh, ...).
+        for cmd in &pane.commands {
+            tmux(&["send-keys", "-t", id, &sh_wrap(cmd), "Enter"])?;
         }
     }
     Ok(())
+}
+
+/// Wrap a command so a pane runs it via `sh -c`, independent of the user's
+/// interactive shell. Single quotes in the command are escaped.
+fn sh_wrap(cmd: &str) -> String {
+    let escaped = cmd.replace('\'', r"'\''");
+    format!("sh -c '{escaped}'")
 }
 
 /// Resolve every pane's working directory and command.
@@ -233,22 +248,21 @@ fn resolve_panes(cfg: &Config, display: &Display) -> Result<Vec<ResolvedPane>> {
             cfg.base_dir.clone()
         };
 
-        // Command: explicit command > named repo action > none (plain shell).
-        let command = if let Some(cmd) = &pane.command {
-            Some(cmd.clone())
+        // Commands: explicit command > named repo action > none (plain shell).
+        let commands = if let Some(cmd) = &pane.command {
+            vec![cmd.clone()]
         } else if let Some(action) = &pane.action {
             let repo_name = pane
                 .repo
                 .as_ref()
                 .with_context(|| format!("pane action '{action}' requires a `repo`"))?;
             let repo = cfg.find_repo(repo_name)?;
-            let cmds = repo
-                .actions
+            repo.actions
                 .get(action)
-                .with_context(|| format!("repo '{repo_name}' has no '{action}' action"))?;
-            Some(cmds.join(" && "))
+                .with_context(|| format!("repo '{repo_name}' has no '{action}' action"))?
+                .clone()
         } else {
-            None
+            Vec::new()
         };
 
         let title = pane
@@ -261,7 +275,7 @@ fn resolve_panes(cfg: &Config, display: &Display) -> Result<Vec<ResolvedPane>> {
         out.push(ResolvedPane {
             title,
             dir,
-            command,
+            commands,
         });
     }
     Ok(out)
